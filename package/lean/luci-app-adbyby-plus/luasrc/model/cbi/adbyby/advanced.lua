@@ -22,6 +22,11 @@ o.title = translate("Block Apple iOS OTA update")
 o.default = 0
 o.rmempty = false
 
+o = s:option(Flag, "block_douyin")
+o.title = translate("Block Douyin APP and Website")
+o.default = 0
+o.rmempty = false
+
 o = s:option(Flag, "cron_mode")
 o.title = translate("Update the rule at 6 a.m. every morning and restart adbyby")
 o.default = 0
@@ -41,8 +46,7 @@ o.description = translate("AdGuardHome / Host / DNSMASQ rules auto-convert")
 o = s:option(Button,"delete",translate("Delete All Subscribe Rules"))
 o.inputstyle = "reset"
 o.write = function()
-  SYS.exec("rm -rf /usr/share/adbyby/rules/data/* /usr/share/adbyby/rules/host/*")
-  SYS.exec("mkdir -p /usr/share/adbyby/rules/data/ /usr/share/adbyby/rules/host/")
+  SYS.exec("rm -f /usr/share/adbyby/rules/data/* /usr/share/adbyby/rules/host/*")
   SYS.exec("/etc/init.d/adbyby restart 2>&1 &")
   luci.http.redirect(luci.dispatcher.build_url("admin", "services", "adbyby", "advanced"))
 end
