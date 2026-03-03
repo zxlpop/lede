@@ -6,7 +6,7 @@
 
 usage() {
 	cat <<EOF
-Usage: $0 [config|up|down|reconf|reload|status]
+Usage: $0 [config|up|down|reconf|reload|status|isup]
 enables (default), disables or configures devices not yet configured.
 EOF
 	exit 1
@@ -19,6 +19,22 @@ ubus_wifi_cmd() {
 	json_init
 	[ -n "$2" ] && json_add_string device "$2"
 	ubus call network.wireless "$1" "$(json_dump)"
+}
+
+wifi_isup() {
+	local dev="$1"
+
+	json_load "$(ubus_wifi_cmd "status" "$dev")"
+	json_get_keys devices
+
+	for device in $devices; do
+		json_select "$device"
+			json_get_var up up
+			[ $up -eq 0 ] && return 1
+		json_select ..
+	done
+
+	return 0
 }
 
 find_net_config() {(
@@ -79,6 +95,7 @@ wifi_fixup_hwmode() {
 	case "$hwmode" in
 		11bg) hwmode=bg;;
 		11a) hwmode=a;;
+		11ad) hwmode=ad;;
 		11b) hwmode=b;;
 		11g) hwmode=g;;
 		11n*)
@@ -127,10 +144,12 @@ wifi_updown() {
 	[ enable = "$1" ] && {
 		_wifi_updown disable "$2"
 		ubus_wifi_cmd "$cmd" "$2"
+		ubus call network reload
 		scan_wifi
 		cmd=up
 	}
 	[ reconf = "$1" ] && {
+		ubus call network reload
 		scan_wifi
 		cmd=reconf
 	}
@@ -242,10 +261,11 @@ case "$1" in
 	detect) wifi_detect_notice ;;
 	config) wifi_config ;;
 	status) ubus_wifi_cmd "status" "$2";;
+	isup) wifi_isup "$2"; exit $?;;
 	reload) wifi_reload "$2";;
 	reload_legacy) wifi_reload_legacy "$2";;
 	--help|help) usage;;
-	reconf) ubus call network reload; wifi_updown "reconf" "$2";;
-	''|up) ubus call network reload; wifi_updown "enable" "$2";;
+	reconf) wifi_updown "reconf" "$2";;
+	''|up) wifi_updown "enable" "$2";;
 	*) usage; exit 1;;
 esac

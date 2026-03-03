@@ -1,9 +1,6 @@
+# SPDX-License-Identifier: GPL-2.0-only
 #
-# Copyright (C) 2006-2010 OpenWrt.org
-#
-# This is free software, licensed under the GNU General Public License v2.
-# See /LICENSE for more information.
-#
+# Copyright (C) 2006-2020 OpenWrt.org
 
 include $(INCLUDE_DIR)/download.mk
 
@@ -24,7 +21,7 @@ include $(INCLUDE_DIR)/depends.mk
 include $(INCLUDE_DIR)/quilt.mk
 
 BUILD_TYPES += host
-HOST_STAMP_PREPARED=$(HOST_BUILD_DIR)/.prepared$(if $(HOST_QUILT)$(DUMP),,$(shell $(call find_md5,${CURDIR} $(PKG_FILE_DEPENDS),))_$(call confvar,CONFIG_AUTOREMOVE $(HOST_PREPARED_DEPENDS)))
+HOST_STAMP_PREPARED=$(HOST_BUILD_DIR)/.prepared$(if $(HOST_QUILT)$(DUMP),,$(shell $(call $(if $(CONFIG_AUTOREMOVE),find_md5_reproducible,find_md5),${CURDIR} $(PKG_FILE_DEPENDS),))_$(call confvar,CONFIG_AUTOREMOVE $(HOST_PREPARED_DEPENDS)))
 HOST_STAMP_CONFIGURED:=$(HOST_BUILD_DIR)/.configured
 HOST_STAMP_BUILT:=$(HOST_BUILD_DIR)/.built
 HOST_BUILD_PREFIX?=$(if $(IS_PACKAGE_BUILD),$(STAGING_DIR_HOSTPKG),$(STAGING_DIR_HOST))
@@ -37,16 +34,23 @@ include $(INCLUDE_DIR)/autotools.mk
 _host_target:=$(if $(HOST_QUILT),,.)
 
 Host/Patch:=$(Host/Patch/Default)
-ifneq ($(strip $(HOST_UNPACK)),)
-  define Host/Prepare/Default
-	$(HOST_UNPACK)
+define Host/Prepare/Default
+	$(if $(strip $(HOST_UNPACK)),$(HOST_UNPACK))
 	[ ! -d ./src/ ] || $(CP) ./src/* $(HOST_BUILD_DIR)
 	$(Host/Patch)
-  endef
-endif
+endef
 
 define Host/Prepare
   $(call Host/Prepare/Default)
+endef
+
+define Host/Gnulib/Prepare
+  $(STAGING_DIR_HOST)/bin/gnulib-tool \
+	--local-dir=$(STAGING_DIR_HOST)/share/gnulib \
+	--source-base=$(PKG_GNULIB_BASE) \
+	$(PKG_GNULIB_ARGS) \
+	$(PKG_GNULIB_MODS) \
+  ;
 endef
 
 HOST_CONFIGURE_VARS = \
@@ -54,6 +58,7 @@ HOST_CONFIGURE_VARS = \
 	CFLAGS="$(HOST_CFLAGS)" \
 	CXX="$(HOSTCXX)" \
 	CPPFLAGS="$(HOST_CPPFLAGS)" \
+	CXXFLAGS="$(HOST_CXXFLAGS)" \
 	LDFLAGS="$(HOST_LDFLAGS)" \
 	CONFIG_SHELL="$(SHELL)"
 
@@ -111,6 +116,10 @@ define Host/Compile
   $(call Host/Compile/Default)
 endef
 
+define Host/Gnulib/Compile
+  $(call Host/Compile/Default,SUBDIRS='$$$$(wildcard $(PKG_GNULIB_BASE))')
+endef
+
 define Host/Install/Default
 	$(call Host/Compile/Default,install)
 endef
@@ -132,7 +141,6 @@ define Host/Exports/Default
   $(1) : export STAGING_PREFIX=$$(HOST_BUILD_PREFIX)
   $(1) : export PKG_CONFIG_PATH=$$(STAGING_DIR_HOST)/lib/pkgconfig:$$(HOST_BUILD_PREFIX)/lib/pkgconfig
   $(1) : export PKG_CONFIG_LIBDIR=$$(HOST_BUILD_PREFIX)/lib/pkgconfig
-  $(if $(CONFIG_CCACHE),$(1) : export CCACHE_DIR:=$(STAGING_DIR_HOST)/ccache)
   $(if $(HOST_CONFIG_SITE),$(1) : export CONFIG_SITE:=$(HOST_CONFIG_SITE))
   $(if $(IS_PACKAGE_BUILD),$(1) : export PATH=$$(TARGET_PATH_PKG))
 endef
@@ -184,6 +192,8 @@ ifndef DUMP
     clean-build: host-clean-build
   endif
 
+  $(call check_download_integrity)
+
   $(_host_target)host-prepare: $(HOST_STAMP_PREPARED)
   $(_host_target)host-configure: $(HOST_STAMP_CONFIGURED)
   $(_host_target)host-compile: $(HOST_STAMP_BUILT) $(HOST_STAMP_INSTALLED)
@@ -199,13 +209,17 @@ ifndef DUMP
 
     ifneq ($(CONFIG_AUTOREMOVE),)
       host-compile:
-		$(FIND) $(HOST_BUILD_DIR) -mindepth 1 -maxdepth 1 -not '(' -type f -and -name '.*' -and -size 0 ')' | \
-			$(XARGS) rm -rf
+		$(FIND) $(HOST_BUILD_DIR) -mindepth 1 -maxdepth 1 -not '(' -type f -and -name '.*' -and -size 0 ')' -print0 | \
+			$(XARGS) -0 rm -rf
     endif
   endef
 endif
 
 define HostBuild
   $(HostBuild/Core)
-  $(if $(if $(PKG_HOST_ONLY),,$(STAMP_PREPARED)),,$(if $(strip $(PKG_SOURCE_URL)),$(call Download,default)))
+  $(if $(if $(PKG_HOST_ONLY),,$(if $(and $(filter host-%,$(MAKECMDGOALS)),$(PKG_SKIP_DOWNLOAD)),,$(STAMP_PREPARED))),,
+	$(if $(and $(CONFIG_AUTOREMOVE), $(wildcard $(HOST_STAMP_INSTALLED), $(wildcard $(HOST_STAMP_BUILT)))),,
+		$(if $(strip $(PKG_SOURCE_URL)),$(call Download,default))
+	)
+  )
 endef

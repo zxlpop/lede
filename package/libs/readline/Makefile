@@ -8,14 +8,14 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=readline
-PKG_VERSION:=8.0
+PKG_VERSION:=8.3
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=@GNU/readline
-PKG_HASH:=e339f51971478d369f8a053a330a190781acb9864cf4c541060f12078948e461
+PKG_HASH:=fe5383204467828cd495ee8d1d3c037a7eba1389c22bc6a041f627976f9061cc
 
-PKG_LICENSE:=GPL-3.0
+PKG_LICENSE:=GPL-3.0-or-later
 PKG_LICENSE_FILES:=COPYING
 PKG_CPE_ID:=cpe:/a:gnu:readline
 
@@ -45,13 +45,19 @@ define Package/libreadline/description
 	history expansion on previous commands.
 endef
 
+HOST_CONFIGURE_ARGS += --disable-shared --with-pic
 CONFIGURE_ARGS += --with-curses --disable-install-examples
+
+HOST_CONFIGURE_VARS += \
+	bash_cv_termcap_lib=libncurses
 
 CONFIGURE_VARS += \
 	bash_cv_wcwidth_broken=no \
 	bash_cv_func_sigsetjmp=yes \
+	bash_cv_termcap_lib=libncursesw
 
 TARGET_CFLAGS += $(FPIC)
+HOST_CFLAGS += $(FPIC)
 
 define Build/InstallDev
 	$(INSTALL_DIR) $(1)/usr/include
@@ -63,7 +69,7 @@ endef
 
 define Package/libreadline/install
 	$(INSTALL_DIR) $(1)/usr/lib
-	$(CP) $(PKG_INSTALL_DIR)/usr/lib/lib{history,readline}.so.* $(1)/usr/lib/
+	$(CP) $(PKG_INSTALL_DIR)/usr/lib/lib{history,readline}.so* $(1)/usr/lib/
 endef
 
 $(eval $(call HostBuild))

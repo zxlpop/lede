@@ -1048,14 +1048,9 @@ static int adm6996_config_init(struct phy_device *pdev)
 	struct adm6996_priv *priv;
 	int ret;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0)
 	linkmode_zero(pdev->supported);
 	linkmode_set_bit(ETHTOOL_LINK_MODE_100baseT_Full_BIT, pdev->supported);
 	linkmode_copy(pdev->advertising, pdev->supported);
-#else
-	pdev->supported = ADVERTISED_100baseT_Full;
-	pdev->advertising = ADVERTISED_100baseT_Full;
-#endif
 
 	if (pdev->mdio.addr != 0) {
 		pr_info ("%s: PHY overlaps ADM6996, providing fixed PHY 0x%x.\n"
@@ -1204,14 +1199,20 @@ static int adm6996_gpio_probe(struct platform_device *pdev)
 	return 0;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6,11,0)
 static int adm6996_gpio_remove(struct platform_device *pdev)
+#else
+static void adm6996_gpio_remove(struct platform_device *pdev)
+#endif
 {
 	struct adm6996_priv *priv = platform_get_drvdata(pdev);
 
 	if (priv && (priv->model == ADM6996M || priv->model == ADM6996L))
 		unregister_switch(&priv->dev);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6,11,0)
 	return 0;
+#endif
 }
 
 static struct platform_driver adm6996_gpio_driver = {

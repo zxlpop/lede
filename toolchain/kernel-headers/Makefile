@@ -17,11 +17,19 @@ include $(INCLUDE_DIR)/kernel.mk
 PKG_NAME:=linux
 PKG_VERSION:=$(LINUX_VERSION)
 PKG_SOURCE:=$(LINUX_SOURCE)
-ifneq ($(strip $(CONFIG_KERNEL_GIT_CLONE_URI)),"")
+ifneq ($(call qstrip,$(CONFIG_KERNEL_GIT_CLONE_URI)),)
   PKG_SOURCE_PROTO:=git
   PKG_SOURCE_URL:=$(call qstrip,$(CONFIG_KERNEL_GIT_CLONE_URI))
-  PKG_SOURCE_VERSION:=$(CONFIG_KERNEL_GIT_REF)
+  PKG_SOURCE_VERSION:=$(call qstrip,$(CONFIG_KERNEL_GIT_REF))
+  PKG_MIRROR_HASH:=$(call qstrip,$(CONFIG_KERNEL_GIT_MIRROR_HASH))
+ifdef CHECK
+  include $(INCLUDE_DIR)/kernel-version.mk
+  PKG_VERSION:=$(LINUX_VERSION)
 else
+  PKG_SOURCE:=$(LINUX_SOURCE)
+endif
+else
+  PKG_SOURCE:=$(LINUX_SOURCE)
   PKG_SOURCE_URL:=$(LINUX_SITE)
 endif
 HOST_BUILD_DIR:=$(KERNEL_BUILD_DIR)/linux-$(LINUX_VERSION)
@@ -60,6 +68,7 @@ ifneq ($(CONFIG_mips)$(CONFIG_mipsel),)
 		$(HOST_BUILD_DIR)/arch/mips/include/asm/asm.h \
 		$(HOST_BUILD_DIR)/arch/mips/include/asm/regdef.h \
 		$(HOST_BUILD_DIR)/arch/mips/include/asm/asm-eva.h \
+		$(HOST_BUILD_DIR)/arch/mips/include/asm/isa-rev.h \
 		$(BUILD_DIR_TOOLCHAIN)/linux-dev/include/asm/
   endef
 endif
